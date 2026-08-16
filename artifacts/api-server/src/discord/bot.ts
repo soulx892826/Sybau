@@ -102,7 +102,7 @@ function profileId(guildId: string, userId: string): string {
 }
 
 function discordFullTimestamp(date: Date): string {
-  return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
+  return `<t:${Math.floor(date.getTime() / 1000)}:f>`;
 }
 
 async function createUniqueCode(): Promise<string> {
@@ -430,14 +430,10 @@ async function showProfile(message: Message): Promise<void> {
     `**ID:** ${formatVouchId(target.id)}`,
     `**PID:** ${formatVouchId(profileId(message.guild.id, target.id))}`,
     `**Name:** ${displayName(target)} • ${target}`,
-    "",
     "────────────────",
-    "",
     "__**Badges**__",
     "_No badges._",
-    "",
     "────────────────",
-    "",
     "__**Vouch Information**__",
     `**Vouches:** ${total}`,
     `**Last 7 Days:** ${lastSeven}`,
@@ -445,14 +441,12 @@ async function showProfile(message: Message): Promise<void> {
 
   if (latest) {
     profileLines.push(
-      "",
       `**Latest:** ${latest.product}`,
       `**ID:** ${formatVouchId(latest.code)}`,
-      "",
       `Swift • ${discordFullTimestamp(latest.createdAt)}`,
     );
   } else {
-    profileLines.push("", `Swift • ${discordFullTimestamp(new Date())}`);
+    profileLines.push(`Swift • ${discordFullTimestamp(new Date())}`);
   }
 
   const embed = new EmbedBuilder()
@@ -626,6 +620,13 @@ async function handleSetCommand(
 async function registerCommands(client: Client): Promise<void> {
   for (const guild of client.guilds.cache.values()) {
     const existing = await guild.commands.fetch();
+    const obsoleteAdminVouch = existing.find(
+      (command) => command.name === "admin-vouch",
+    );
+    if (obsoleteAdminVouch) {
+      await obsoleteAdminVouch.delete();
+    }
+
     for (const command of slashCommands) {
       const previous = existing.find((item) => item.name === command.name);
       if (previous) {
