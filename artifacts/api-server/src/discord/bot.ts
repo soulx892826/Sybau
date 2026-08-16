@@ -101,17 +101,6 @@ function profileId(guildId: string, userId: string): string {
   return String(Math.abs(hash) % 1000000).padStart(6, "0");
 }
 
-function profileFooterDate(): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date());
-}
-
 async function createUniqueCode(): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const code = createCode();
@@ -437,7 +426,7 @@ async function showProfile(message: Message): Promise<void> {
         `**Last 7 Days:** ${lastSeven}`,
       ].join("\n"),
     );
-  embed.setFooter({ text: `Swift • ${profileFooterDate()}` });
+  embed.setFooter({ text: "Swift" }).setTimestamp(new Date());
 
   await message.reply({ embeds: [embed] });
 }
