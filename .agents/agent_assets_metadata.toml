@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "msfAnuXVzqLrYUHRxdrxI"
+uri = "file://exports/sybau-vouch-bot.zip"
+type = "unspecified"
+title = "Sybau Vouch Bot source ZIP"
+description = "Clean source archive of the transparent Discord vouch bot. Secrets and dependency folders are excluded."
