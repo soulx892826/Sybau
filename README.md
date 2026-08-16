@@ -29,6 +29,18 @@ leaderboards, recent activity, and Shiba-style profile lookup.
 The bot needs permission to view channels, read message history, send messages,
 add reactions, and embed links.
 
+## Replit deployment
+
+Discord bots need a continuously running process, so this project is configured
+for Replit's VM deployment target instead of autoscale. Before publishing:
+
+1. Provision the Replit PostgreSQL database.
+2. Add `DISCORD_BOT_TOKEN` through Replit Secrets.
+3. Run `pnpm --filter @workspace/db run push` once to create the tables.
+4. Click **Publish** and keep the deployment on the VM target.
+
+Replit supplies `DATABASE_URL` and `PORT` to the deployed service.
+
 ## Railway deployment
 
 This repository includes a `railway.json` configuration for a long-running
