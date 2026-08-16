@@ -309,9 +309,7 @@ async function submitMemberVouch(message: Message): Promise<void> {
     source: "member",
   });
 
-  await message
-    .react("<a:SA_Tick:1341731331616280586>")
-    .catch(() => undefined);
+  await message.react("✅").catch(() => undefined);
   await message.reply({
     embeds: [
       new EmbedBuilder()
