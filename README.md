@@ -53,4 +53,7 @@ Add these Railway service variables before deploying:
 - `DISCORD_BOT_TOKEN` — Discord bot token
 
 Railway provides `PORT` automatically. Keep the service running as a worker/API
-service rather than using a one-off command.
+service rather than using a one-off command. The Railway start command syncs the
+Drizzle schema before starting the bot, so the referenced PostgreSQL service
+must expose `DATABASE_URL` to this service. Prefix commands also require the
+Message Content Intent to be enabled in the Discord Developer Portal.
