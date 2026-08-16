@@ -311,7 +311,13 @@ async function submitMemberVouch(message: Message): Promise<void> {
 
   await message.react("✅").catch(() => undefined);
   await message.reply({
-    embeds: [vouchEmbed(target, details, code)],
+    embeds: [
+      new EmbedBuilder()
+        .setColor(INFO_COLOR)
+        .setDescription(
+          `Vouch ${formatVouchId(code)} submitted for ${target}.`,
+        ),
+    ],
   });
 
   await target
