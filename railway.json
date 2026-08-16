@@ -5,7 +5,8 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "pnpm --filter @workspace/db run push && pnpm --filter @workspace/api-server run start",
+    "preDeployCommand": "pnpm --filter @workspace/db run push-force",
+    "startCommand": "pnpm --filter @workspace/api-server run start",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/api/healthz",

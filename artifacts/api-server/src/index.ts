@@ -18,29 +18,50 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function start(): Promise<void> {
-  try {
-    await checkDatabaseConnection();
-    logger.info("Database connection verified");
-  } catch (error: unknown) {
-    logger.error(
-      { error },
-      "Database connection failed; refusing to start the bot",
-    );
-    process.exitCode = 1;
+  const server = app.listen(port, () => {
+    logger.info({ port }, "Server listening");
+
+    void startServices().catch((error: unknown) => {
+      logger.error({ error }, "Background services failed to start");
+    });
+  });
+
+  server.on("error", (error: unknown) => {
+    logger.error({ error }, "Error listening on port");
+    process.exit(1);
+  });
+}
+
+async function startServices(): Promise<void> {
+  if (!process.env["DISCORD_BOT_TOKEN"]) {
+    logger.warn("DISCORD_BOT_TOKEN is not configured; Discord bot is disabled");
     return;
   }
 
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
+  if (!process.env["DATABASE_URL"]) {
+    logger.error("DATABASE_URL is not configured; Discord bot is disabled");
+    return;
+  }
 
-    logger.info({ port }, "Server listening");
-    void startDiscordBot().catch((error: unknown) => {
-      logger.error({ error }, "Discord bot failed to start");
-    });
-  });
+  let attempt = 0;
+  while (true) {
+    attempt += 1;
+    try {
+      await checkDatabaseConnection();
+      logger.info("Database connection verified");
+      break;
+    } catch (error: unknown) {
+      logger.warn(
+        { error, attempt },
+        "Database is not ready; retrying bot startup",
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(30_000, attempt * 2_000)),
+      );
+    }
+  }
+
+  await startDiscordBot();
 }
 
 void start();
