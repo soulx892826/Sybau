@@ -821,7 +821,10 @@ export async function startDiscordBot(): Promise<void> {
     void registerCommands(readyClient)
       .then(() => {
         logger.info(
-          { guilds: readyClient.guilds.cache.size },
+          {
+            botUserId: readyClient.user.id,
+            guilds: readyClient.guilds.cache.size,
+          },
           "Discord vouch bot is ready",
         );
       })
