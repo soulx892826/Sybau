@@ -28,8 +28,6 @@ import { logger } from "../lib/logger";
 const SUCCESS_COLOR = 0x57f287;
 const INFO_COLOR = 0x5865f2;
 const ERROR_COLOR = 0xed4245;
-const WARNING_COLOR = 0xfee75c;
-const MAX_ADMIN_VOUCHES_PER_COMMAND = 500;
 
 const slashCommands = [
   new SlashCommandBuilder()
@@ -47,42 +45,6 @@ const slashCommands = [
   new SlashCommandBuilder()
     .setName("hot")
     .setDescription("Show the most active members from the last 7 days"),
-  new SlashCommandBuilder()
-    .setName("admin-vouch")
-    .setDescription("Record transparent admin-verified vouches")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString())
-    .addUserOption((option) =>
-      option.setName("user").setDescription("The recipient").setRequired(true),
-    )
-    .addIntegerOption((option) =>
-      option
-        .setName("count")
-        .setDescription("How many admin-verified entries to record")
-        .setMinValue(1)
-        .setMaxValue(MAX_ADMIN_VOUCHES_PER_COMMAND)
-        .setRequired(true),
-    )
-    .addStringOption((option) =>
-      option
-        .setName("product")
-        .setDescription("The product or transaction description")
-        .setMaxLength(200)
-        .setRequired(true),
-    )
-    .addStringOption((option) =>
-      option
-        .setName("amount")
-        .setDescription("The transaction amount")
-        .setMaxLength(40)
-        .setRequired(true),
-    )
-    .addStringOption((option) =>
-      option
-        .setName("reason")
-        .setDescription("Why the entries were manually verified")
-        .setMaxLength(300)
-        .setRequired(false),
-    ),
   new SlashCommandBuilder()
     .setName("set")
     .setDescription("Configure vouch notifications and roles")
@@ -129,6 +91,25 @@ function formatVouchId(code: string): string {
 
 function createCode(): string {
   return randomInt(100000, 10000000).toString();
+}
+
+function profileId(guildId: string, userId: string): string {
+  let hash = 0;
+  for (const character of `${guildId}:${userId}`) {
+    hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  }
+  return String(Math.abs(hash) % 1000000).padStart(6, "0");
+}
+
+function profileFooterDate(): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date());
 }
 
 async function createUniqueCode(): Promise<string> {
@@ -222,25 +203,16 @@ function vouchEmbed(
   target: User,
   details: string,
   code: string,
-  source: "member" | "admin_verified",
 ): EmbedBuilder {
   return new EmbedBuilder()
-    .setColor(source === "admin_verified" ? WARNING_COLOR : INFO_COLOR)
+    .setColor(INFO_COLOR)
     .setTitle("Vouch submitted")
     .setDescription(
       `Vouch ${formatVouchId(code)} submitted for ${target}.`,
     )
     .addFields(
       { name: "Details", value: details, inline: false },
-      {
-        name: "Source",
-        value:
-          source === "admin_verified"
-            ? "Admin verified"
-            : "Member submitted",
-        inline: true,
-      },
-      { name: "Status", value: "Pending", inline: true },
+      { name: "Status", value: "Received", inline: true },
     )
     .setTimestamp();
 }
@@ -250,7 +222,6 @@ async function sendVouchNotification(
   target: User,
   details: string,
   code: string,
-  source: "member" | "admin_verified",
 ): Promise<void> {
   const settings = await getSettings(guildId);
   if (!settings?.notificationChannelId) {
@@ -265,7 +236,7 @@ async function sendVouchNotification(
   }
 
   await channel
-    .send({ embeds: [vouchEmbed(target, details, code, source)] })
+    .send({ embeds: [vouchEmbed(target, details, code)] })
     .catch((error: unknown) => {
       logger.warn({ error, guildId }, "Unable to send vouch notification");
     });
@@ -345,30 +316,33 @@ async function submitMemberVouch(message: Message): Promise<void> {
 
   await message.react("✅").catch(() => undefined);
   await message.reply({
-    embeds: [vouchEmbed(target, details, code, "member")],
+    embeds: [vouchEmbed(target, details, code)],
   });
 
-  await message.author
+  await target
     .send({
       embeds: [
         new EmbedBuilder()
           .setColor(SUCCESS_COLOR)
-          .setTitle("Vouch status")
           .setDescription(
-            `${formatVouchId(code)} — Received`,
+            [
+              `**${code} — Received**`,
+              "",
+              "────────────────────────",
+              "",
+              `> ${details}`,
+              "",
+              "────────────────────────",
+              "",
+              `Sent by \`${displayName(message.author)}\` •`,
+              `\`${message.author.id}\``,
+            ].join("\n"),
           )
-          .addFields(
-            { name: "Details", value: details, inline: false },
-            { name: "For", value: target.toString(), inline: true },
-            { name: "Submitted by", value: displayName(message.author), inline: true },
-          )
-          .setFooter({ text: "Use /status with this ID to check it later." })
-          .setTimestamp(),
       ],
     })
     .catch(() => undefined);
 
-  await sendVouchNotification(message.guild.id, target, details, code, "member");
+  await sendVouchNotification(message.guild.id, target, details, code);
 }
 
 async function showProfile(message: Message): Promise<void> {
@@ -414,7 +388,7 @@ async function showProfile(message: Message): Promise<void> {
     return;
   }
 
-  const [totalRows, memberRows, adminRows, latestRows] = await Promise.all([
+  const [totalRows, lastSevenRows, latestRows] = await Promise.all([
     db
       .select({ total: count() })
       .from(vouchesTable)
@@ -431,17 +405,10 @@ async function showProfile(message: Message): Promise<void> {
         and(
           eq(vouchesTable.guildId, message.guild.id),
           eq(vouchesTable.targetUserId, target.id),
-          eq(vouchesTable.source, "member"),
-        ),
-      ),
-    db
-      .select({ total: count() })
-      .from(vouchesTable)
-      .where(
-        and(
-          eq(vouchesTable.guildId, message.guild.id),
-          eq(vouchesTable.targetUserId, target.id),
-          eq(vouchesTable.source, "admin_verified"),
+          gte(
+            vouchesTable.createdAt,
+            new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          ),
         ),
       ),
     db
@@ -458,33 +425,40 @@ async function showProfile(message: Message): Promise<void> {
   ]);
 
   const total = totalRows[0]?.total ?? 0;
-  const memberCount = memberRows[0]?.total ?? 0;
-  const adminCount = adminRows[0]?.total ?? 0;
+  const lastSeven = lastSevenRows[0]?.total ?? 0;
   const latest = latestRows[0];
   const embed = new EmbedBuilder()
     .setColor(INFO_COLOR)
-    .setTitle(`${displayName(target)}'s vouch information`)
+    .setTitle(`${displayName(target)}'s Profile`)
     .setThumbnail(target.displayAvatarURL())
     .addFields(
-      { name: "Vouches", value: `${total}`, inline: true },
-      { name: "Member vouches", value: `${memberCount}`, inline: true },
-      { name: "Admin-verified", value: `${adminCount}`, inline: true },
+      { name: "ID", value: formatVouchId(target.id), inline: false },
+      {
+        name: "PID",
+        value: formatVouchId(profileId(message.guild.id, target.id)),
+        inline: false,
+      },
+      {
+        name: "Name",
+        value: `${displayName(target)} • ${target}`,
+        inline: false,
+      },
+      { name: "Badges", value: "No badges.", inline: false },
+      {
+        name: "Vouch Information",
+        value: [
+          `**Vouches:** ${total}`,
+          `**Last 7 Days:** ${lastSeven}`,
+          latest
+            ? `\n**Latest:** ${latest.product}\n**ID:** ${formatVouchId(latest.code)}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        inline: false,
+      },
     );
-
-  if (latest) {
-    embed.addFields({
-      name: "Latest vouch",
-      value: [
-        latest.source === "admin_verified"
-          ? "Admin verified"
-          : `Sent by ${latest.giverUsername}`,
-        latest.product,
-        `ID: ${formatVouchId(latest.code)}`,
-      ].join("\n"),
-    });
-  } else {
-    embed.setDescription("No vouches have been recorded for this member yet.");
-  }
+  embed.setFooter({ text: `Swift • ${profileFooterDate()}` });
 
   await message.reply({ embeds: [embed] });
 }
@@ -535,7 +509,7 @@ async function showLeaderboard(
         .setTitle(hot ? "Hot vouches" : "Top vouched all time")
         .setDescription(lines.join("\n"))
         .setFooter({
-          text: hot ? "Based on the last 7 days." : "Member and admin-verified entries are shown.",
+          text: hot ? "Based on the last 7 days." : "All recorded vouches are shown.",
         })
         .setTimestamp(),
     ],
@@ -595,92 +569,13 @@ async function showStatus(
       rows
         .map(
           (row) =>
-            `${formatVouchId(row.code)} — **${row.status === "pending" ? "Pending" : row.status}**\n${row.product}\nFor <@${row.targetUserId}>`,
+            `${formatVouchId(row.code)} — **${row.status === "pending" ? "Received" : row.status}**\n${row.product}\nFor <@${row.targetUserId}>`,
         )
         .join("\n\n"),
     )
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
-}
-
-async function handleAdminVouch(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  if (
-    !interaction.guild ||
-    !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
-  ) {
-    await interaction.reply({
-      content: "Only server administrators can use this command.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const target = interaction.options.getUser("user", true);
-  const amount = interaction.options.getString("amount", true);
-  const product = interaction.options.getString("product", true);
-  const reason =
-    interaction.options.getString("reason") ?? "Manually verified by an administrator";
-  const requestedCount = interaction.options.getInteger("count", true);
-
-  if (target.bot) {
-    await interaction.reply({
-      content: "Bots cannot receive vouches.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  await interaction.deferReply({ ephemeral: true });
-  const insertedCodes: string[] = [];
-  for (let index = 0; index < requestedCount; index += 1) {
-    const code = await createUniqueCode();
-    await db.insert(vouchesTable).values({
-      code,
-      guildId: interaction.guild.id,
-      targetUserId: target.id,
-      targetUsername: displayName(target),
-      giverUserId: interaction.user.id,
-      giverUsername: displayName(interaction.user),
-      product: `${product} — ${reason}`,
-      amount,
-      status: "verified",
-      source: "admin_verified",
-      adminUserId: interaction.user.id,
-      adminUsername: displayName(interaction.user),
-    });
-    insertedCodes.push(code);
-  }
-
-  await sendVouchNotification(
-    interaction.guild.id,
-    target,
-    `${product} — ${reason}`,
-    insertedCodes[0] ?? "n/a",
-    "admin_verified",
-  );
-
-  await interaction.editReply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(WARNING_COLOR)
-        .setTitle("Admin-verified vouches recorded")
-        .setDescription(
-          `Added **${requestedCount}** transparent admin-verified vouch${requestedCount === 1 ? "" : "es"} for ${target}.`,
-        )
-        .addFields(
-          { name: "Product", value: product, inline: true },
-          { name: "Amount", value: amount, inline: true },
-          { name: "Audit", value: `Recorded by ${interaction.user}`, inline: false },
-        )
-        .setFooter({
-          text: "These entries are labeled Admin-verified in +p.",
-        })
-        .setTimestamp(),
-    ],
-  });
 }
 
 async function handleSetCommand(
@@ -774,8 +669,6 @@ function registerEventHandlers(client: Client): void {
           ? showLeaderboard(interaction, false)
           : interaction.commandName === "hot"
             ? showLeaderboard(interaction, true)
-            : interaction.commandName === "admin-vouch"
-              ? handleAdminVouch(interaction)
               : interaction.commandName === "set"
                 ? handleSetCommand(interaction)
                 : Promise.resolve();

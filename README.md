@@ -1,8 +1,7 @@
 # Sybau Vouch Bot
 
 A Discord vouch bot with persistent records, confirmation IDs, status lookup,
-leaderboards, recent activity, profile lookup, and transparent
-admin-verified entries.
+leaderboards, recent activity, and Shiba-style profile lookup.
 
 ## Commands
 
@@ -16,11 +15,6 @@ admin-verified entries.
 - `/set channel` — configure notification channel
 - `/set dwc` — configure the DWC role
 - `/set scammer` — configure the scammer role
-- `/admin-vouch` — administrator-only manual verification command
-
-Admin-created records are deliberately labeled **Admin-verified** in profiles
-and include the administrator, reason, timestamp, and generated IDs in the
-database audit trail. They are not presented as ordinary member submissions.
 
 ## Setup
 
