@@ -101,6 +101,10 @@ function profileId(guildId: string, userId: string): string {
   return String(Math.abs(hash) % 1000000).padStart(6, "0");
 }
 
+function discordFullTimestamp(date: Date): string {
+  return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
+}
+
 async function createUniqueCode(): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const code = createCode();
@@ -195,15 +199,17 @@ function vouchEmbed(
 ): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(INFO_COLOR)
-    .setTitle("Vouch submitted")
+    .setTitle(`${displayName(target)}'s Vouch`)
     .setDescription(
-      `Vouch ${formatVouchId(code)} submitted for ${target}.`,
-    )
-    .addFields(
-      { name: "Details", value: details, inline: false },
-      { name: "Status", value: "Received", inline: true },
-    )
-    .setTimestamp();
+      [
+        "__**Vouch Information**__",
+        `**Latest:** ${details}`,
+        `**ID:** ${formatVouchId(code)}`,
+        `**For:** ${target}`,
+        "",
+        `Swift • ${discordFullTimestamp(new Date())}`,
+      ].join("\n"),
+    );
 }
 
 async function sendVouchNotification(
@@ -377,7 +383,7 @@ async function showProfile(message: Message): Promise<void> {
     return;
   }
 
-  const [totalRows, lastSevenRows] = await Promise.all([
+  const [totalRows, lastSevenRows, latestRows] = await Promise.all([
     db
       .select({ total: count() })
       .from(vouchesTable)
@@ -400,33 +406,60 @@ async function showProfile(message: Message): Promise<void> {
           ),
         ),
       ),
+    db
+      .select({
+        code: vouchesTable.code,
+        product: vouchesTable.product,
+        createdAt: vouchesTable.createdAt,
+      })
+      .from(vouchesTable)
+      .where(
+        and(
+          eq(vouchesTable.guildId, message.guild.id),
+          eq(vouchesTable.targetUserId, target.id),
+        ),
+      )
+      .orderBy(desc(vouchesTable.createdAt))
+      .limit(1),
   ]);
 
   const total = totalRows[0]?.total ?? 0;
   const lastSeven = lastSevenRows[0]?.total ?? 0;
+  const latest = latestRows[0];
+  const profileLines = [
+    `**ID:** ${formatVouchId(target.id)}`,
+    `**PID:** ${formatVouchId(profileId(message.guild.id, target.id))}`,
+    `**Name:** ${displayName(target)} • ${target}`,
+    "",
+    "────────────────────────",
+    "",
+    "__**Badges**__",
+    "_No badges._",
+    "",
+    "────────────────────────",
+    "",
+    "__**Vouch Information**__",
+    `**Vouches:** ${total}`,
+    `**Last 7 Days:** ${lastSeven}`,
+  ];
+
+  if (latest) {
+    profileLines.push(
+      "",
+      `**Latest:** ${latest.product}`,
+      `**ID:** ${formatVouchId(latest.code)}`,
+      "",
+      `Swift • ${discordFullTimestamp(latest.createdAt)}`,
+    );
+  } else {
+    profileLines.push("", `Swift • ${discordFullTimestamp(new Date())}`);
+  }
+
   const embed = new EmbedBuilder()
     .setColor(INFO_COLOR)
     .setTitle(`${displayName(target)}'s Profile`)
     .setThumbnail(target.displayAvatarURL())
-    .setDescription(
-      [
-        `**ID:** ${formatVouchId(target.id)}`,
-        `**PID:** ${formatVouchId(profileId(message.guild.id, target.id))}`,
-        `**Name:** ${displayName(target)} • ${target}`,
-        "",
-        "────────────────────────",
-        "",
-        "__**Badges**__",
-        "_No badges._",
-        "",
-        "────────────────────────",
-        "",
-        "__**Vouch Information**__",
-        `**Vouches:** ${total}`,
-        `**Last 7 Days:** ${lastSeven}`,
-      ].join("\n"),
-    );
-  embed.setFooter({ text: "Swift" }).setTimestamp(new Date());
+    .setDescription(profileLines.join("\n"));
 
   await message.reply({ embeds: [embed] });
 }
