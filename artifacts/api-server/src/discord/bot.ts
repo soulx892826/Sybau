@@ -327,7 +327,7 @@ async function submitMemberVouch(message: Message): Promise<void> {
           .setColor(SUCCESS_COLOR)
           .setDescription(
             [
-              `**${code} — Received**`,
+              `# ${code} — Received`,
               "",
               "────────────────────────",
               "",
@@ -335,8 +335,7 @@ async function submitMemberVouch(message: Message): Promise<void> {
               "",
               "────────────────────────",
               "",
-              `Sent by \`${displayName(message.author)}\` •`,
-              `\`${message.author.id}\``,
+              `Sent by \`${displayName(message.author)}\` • \`${message.author.id}\``,
             ].join("\n"),
           )
       ],
