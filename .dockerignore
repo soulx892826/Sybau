@@ -1,0 +1,10 @@
+.git
+.local
+.cache
+node_modules
+dist
+tmp
+out-tsc
+attached_assets
+exports
+*.log
