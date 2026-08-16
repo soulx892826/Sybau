@@ -388,7 +388,7 @@ async function showProfile(message: Message): Promise<void> {
     return;
   }
 
-  const [totalRows, lastSevenRows, latestRows] = await Promise.all([
+  const [totalRows, lastSevenRows] = await Promise.all([
     db
       .select({ total: count() })
       .from(vouchesTable)
@@ -411,52 +411,31 @@ async function showProfile(message: Message): Promise<void> {
           ),
         ),
       ),
-    db
-      .select()
-      .from(vouchesTable)
-      .where(
-        and(
-          eq(vouchesTable.guildId, message.guild.id),
-          eq(vouchesTable.targetUserId, target.id),
-        ),
-      )
-      .orderBy(desc(vouchesTable.createdAt))
-      .limit(1),
   ]);
 
   const total = totalRows[0]?.total ?? 0;
   const lastSeven = lastSevenRows[0]?.total ?? 0;
-  const latest = latestRows[0];
   const embed = new EmbedBuilder()
     .setColor(INFO_COLOR)
     .setTitle(`${displayName(target)}'s Profile`)
     .setThumbnail(target.displayAvatarURL())
-    .addFields(
-      { name: "ID", value: formatVouchId(target.id), inline: false },
-      {
-        name: "PID",
-        value: formatVouchId(profileId(message.guild.id, target.id)),
-        inline: false,
-      },
-      {
-        name: "Name",
-        value: `${displayName(target)} • ${target}`,
-        inline: false,
-      },
-      { name: "Badges", value: "No badges.", inline: false },
-      {
-        name: "Vouch Information",
-        value: [
-          `**Vouches:** ${total}`,
-          `**Last 7 Days:** ${lastSeven}`,
-          latest
-            ? `\n**Latest:** ${latest.product}\n**ID:** ${formatVouchId(latest.code)}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n"),
-        inline: false,
-      },
+    .setDescription(
+      [
+        `**ID:** ${formatVouchId(target.id)}`,
+        `**PID:** ${formatVouchId(profileId(message.guild.id, target.id))}`,
+        `**Name:** ${displayName(target)} • ${target}`,
+        "",
+        "────────────────────────",
+        "",
+        "__Badges__",
+        "_No badges._",
+        "",
+        "────────────────────────",
+        "",
+        "__Vouch Information__",
+        `**Vouches:** ${total}`,
+        `**Last 7 Days:** ${lastSeven}`,
+      ].join("\n"),
     );
   embed.setFooter({ text: `Swift • ${profileFooterDate()}` });
 
