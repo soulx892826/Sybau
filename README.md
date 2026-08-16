@@ -28,3 +28,17 @@ leaderboards, recent activity, and Shiba-style profile lookup.
 
 The bot needs permission to view channels, read message history, send messages,
 add reactions, and embed links.
+
+## Railway deployment
+
+This repository includes a `railway.json` configuration for a long-running
+Railway service. Railway will build the API package, start it with the injected
+`PORT`, restart it after failures, and use `/api/healthz` for health checks.
+
+Add these Railway service variables before deploying:
+
+- `DATABASE_URL` — PostgreSQL connection string
+- `DISCORD_BOT_TOKEN` — Discord bot token
+
+Railway provides `PORT` automatically. Keep the service running as a worker/API
+service rather than using a one-off command.
