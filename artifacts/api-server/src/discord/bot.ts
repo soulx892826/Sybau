@@ -328,13 +328,9 @@ async function submitMemberVouch(message: Message): Promise<void> {
           .setDescription(
             [
               `# ${code} — Received`,
-              "",
               "────────────────────────",
-              "",
               `> ${details}`,
-              "",
               "────────────────────────",
-              "",
               `Sent by \`${displayName(message.author)}\` • \`${message.author.id}\``,
             ].join("\n"),
           )
